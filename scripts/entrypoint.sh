@@ -102,6 +102,18 @@ cleanup() {
   exit "$exit_code"
 }
 
+
+# Map BALE_* variables to TELEGRAM_* variables if provided
+if [[ -n "${BALE_BOT_TOKEN:-}" ]]; then
+  export TELEGRAM_BOT_TOKEN="${BALE_BOT_TOKEN}"
+fi
+if [[ -n "${BALE_ALLOWED_USERS:-}" ]]; then
+  export TELEGRAM_ALLOWED_USERS="${BALE_ALLOWED_USERS}"
+fi
+if [[ -n "${BALE_ALLOW_ALL_USERS:-}" ]]; then
+  export TELEGRAM_ALLOW_ALL_USERS="${BALE_ALLOW_ALL_USERS}"
+fi
+
 validate_platforms() {
   local count=0
 
@@ -194,7 +206,7 @@ echo "[bootstrap] Writing runtime env to ${ENV_FILE}"
 
 for key in \
   OPENROUTER_API_KEY OPENAI_API_KEY OPENAI_BASE_URL ANTHROPIC_API_KEY LLM_MODEL HERMES_INFERENCE_PROVIDER HERMES_PORTAL_BASE_URL NOUS_INFERENCE_BASE_URL HERMES_NOUS_MIN_KEY_TTL_SECONDS HERMES_DUMP_REQUESTS \
-  TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USERS TELEGRAM_ALLOW_ALL_USERS TELEGRAM_HOME_CHANNEL TELEGRAM_HOME_CHANNEL_NAME \
+  BALE_BOT_TOKEN BALE_ALLOWED_USERS BALE_ALLOW_ALL_USERS BALE_API_BASE_URL TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USERS TELEGRAM_ALLOW_ALL_USERS TELEGRAM_HOME_CHANNEL TELEGRAM_HOME_CHANNEL_NAME \
   DISCORD_BOT_TOKEN DISCORD_ALLOWED_USERS DISCORD_ALLOW_ALL_USERS DISCORD_HOME_CHANNEL DISCORD_HOME_CHANNEL_NAME DISCORD_REQUIRE_MENTION DISCORD_FREE_RESPONSE_CHANNELS \
   SLACK_BOT_TOKEN SLACK_APP_TOKEN SLACK_ALLOWED_USERS SLACK_ALLOW_ALL_USERS SLACK_HOME_CHANNEL SLACK_HOME_CHANNEL_NAME WHATSAPP_ENABLED WHATSAPP_ALLOWED_USERS \
   GATEWAY_ALLOW_ALL_USERS \
@@ -921,6 +933,33 @@ _wait_for_agent_server() {
 _wait_for_agent_server || true
 
 start_hermes_log_forwarders
+
+
+# === Configure Bale endpoint for Telegram platform ===
+python3 - <<'PYEOF'
+import os, yaml
+from pathlib import Path
+
+cfg_file = Path(os.environ['HERMES_HOME']) / 'config.yaml'
+try:
+    with cfg_file.open() as f:
+        cfg = yaml.safe_load(f) or {}
+except Exception:
+    cfg = {}
+
+platforms = cfg.setdefault('platforms', {})
+telegram_cfg = platforms.setdefault('telegram', {})
+bale_base = os.environ.get('BALE_API_BASE_URL', 'https://tapi.bale.ai/bot')
+telegram_cfg['base_url'] = bale_base
+telegram_cfg['base_file_url'] = os.environ.get('BALE_FILE_URL', 'https://tapi.bale.ai/file/bot')
+
+if os.environ.get('BALE_BOT_TOKEN'):
+    telegram_cfg['token'] = os.environ['BALE_BOT_TOKEN']
+
+with cfg_file.open('w') as f:
+    yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+print('[bootstrap] Configured Bale tapi.bale.ai endpoint for Telegram platform adapter.')
+PYEOF
 
 echo "[bootstrap] Starting Hermes gateway..."
 hermes gateway &
