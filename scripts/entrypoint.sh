@@ -949,9 +949,15 @@ except Exception:
 
 platforms = cfg.setdefault('platforms', {})
 telegram_cfg = platforms.setdefault('telegram', {})
+telegram_extra = telegram_cfg.setdefault('extra', {})
+
 bale_base = os.environ.get('BALE_API_BASE_URL', 'https://tapi.bale.ai/bot')
+bale_file = os.environ.get('BALE_FILE_URL', 'https://tapi.bale.ai/file/bot')
+
+telegram_extra['base_url'] = bale_base
+telegram_extra['base_file_url'] = bale_file
 telegram_cfg['base_url'] = bale_base
-telegram_cfg['base_file_url'] = os.environ.get('BALE_FILE_URL', 'https://tapi.bale.ai/file/bot')
+telegram_cfg['base_file_url'] = bale_file
 
 if os.environ.get('BALE_BOT_TOKEN'):
     telegram_cfg['token'] = os.environ['BALE_BOT_TOKEN']
